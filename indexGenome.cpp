@@ -8,10 +8,10 @@
 #include <iostream>
 #include <iomanip>
 
-#include "indexGenome.hpp"
 #include "hash.hpp"
-#include "kmerUtilities.hpp"
+#include "indexGenome.hpp"
 #include "packGenomeBlob.hpp"
+#include "encode_kmer_2bit.h"
 
 void displayProgress(uint64_t current, uint64_t total, int desiredUpdateInterval) {
     uint64_t percent = (current * 100) / total;
@@ -152,8 +152,8 @@ char* index_kmers(const std::string& fastaFile, int KMERSIZE,
         // Generate and store packed kmers and their occurrences
         kMer = (genomeStr.substr(pos, KMERSIZE));
         // Add the occurrence to the kMerMap;
-        pkmer = packKmer(kMer.c_str());
-        pkmer = pkmer ^ reverse_complement(pkmer, KMERSIZE);// canonical kmer representation
+        pkmer = encode_kmer_2bit::pack_32mer(kMer.c_str());
+        pkmer = pkmer ^ encode_kmer_2bit::reverse_complement_32mer(pkmer);// canonical kmer representation
         if (MASK<UINT32_MAX)
             kmerHash = murmurHash3(pkmer) & MASK;
         else
