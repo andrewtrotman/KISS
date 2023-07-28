@@ -79,7 +79,7 @@ void getReference(std::string inputFile,
     // load the map
     auto start = std::chrono::steady_clock::now();
     uint64_t genomeSize;
-    genome = index_kmers(REFERENCE, KMERSIZE,referenceIDMap,kmersMap,MASK,genomeSize);
+    genome = index_kmers(REFERENCE,referenceIDMap,kmersMap,MASK,genomeSize);
     auto end = std::chrono::steady_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
     int minutes = (int) duration.count() / (1000 * 60);

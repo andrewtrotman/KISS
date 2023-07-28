@@ -16,7 +16,6 @@
 
 #include "packGenomeBlob.hpp"
 
-
 /*
 	PACKGENOME()
 	------------
@@ -42,7 +41,7 @@ size_t packGenome(char *genome, uint64_t genome_size, std::map<std::uint32_t, st
 			while (*from != '\n');
 
 			// Save the ID line to the referenceIDMap
-			referenceIDMap[to - genome] = std::string(start, from - start);
+			referenceIDMap[to - genome] = std::string(start, from - start + 1);
 			}
 		else
 			*to++ = c;			// Copy the DNA characters to the new position
@@ -75,7 +74,7 @@ int main_unittest()
 	std::cout << "New Genome Length: " << newLength << std::endl;
 
 	for (const auto &thang : referenceIDMap)
-		std::cout << thang.first << " " << thang.second << "\n";
+		std::cout << thang.first << " " << thang.second;
 
 	return 0;
 	}

@@ -28,11 +28,11 @@
 */
 void displayProgress(uint64_t current, uint64_t total, int desiredUpdateInterval)
 	{
-	static uint64_t lastDisplayedPercent = -1; // Initialize to a value that will trigger the first update
+	static uint64_t lastDisplayedPercent = -desiredUpdateInterval; // Initialize to a value that will trigger the first update
 	uint64_t percent = (current * 100) / total;
 	if (percent - lastDisplayedPercent >= desiredUpdateInterval)
 		{
-		printf("Progress: %3llu\n", percent);
+		printf("Progress: %3llu%%\n", percent);
 		lastDisplayedPercent = percent;
 		}
 	}
@@ -92,82 +92,65 @@ char *read_entire_file(const char *filename, uint64_t &fileSize)
     // Note that the kmer size is limited to 32mers because we pack a base on 2 bits of a uint64.
     // This restriction can be lifted by using kmer random projection onto 64 bits,
     //     and then the kmer length can be arbitrary.*/
-char* index_kmers(const std::string& fastaFile,
-                  int KMERSIZE,
-                  std::map<uint32_t, std::string>& referenceIDMap,
-                  std::vector<std::vector<uint32_t>>& kmersMap,
-                  uint32_t& MASK,
-                  uint64_t& genomeSize)
-{
-    // Read reference file into memory
-    std::cout << std::endl << "Loading References: " << fastaFile << std::endl;
-    uint64_t fileSize;
-    char *genome = read_entire_file(fastaFile.c_str(), fileSize);
-    if (genome == NULL)
-    	{
-        std::cerr << "Failed to read " << fastaFile << " - Either missing, or larger than 4GB" << std::endl;
-        exit(1);
-    	}
-    std::cout << "Reference file size on disk " << fileSize << std::endl;
+char* index_kmers(const std::string &fastaFile, std::map<uint32_t, std::string> &referenceIDMap, std::vector<std::vector<uint32_t>> &kmersMap, uint32_t &MASK, uint64_t &genomeSize)
+	{
+	// Read reference file into memory
+	std::cout << std::endl << "Loading References: " << fastaFile << std::endl;
+	uint64_t fileSize;
+	char *genome = read_entire_file(fastaFile.c_str(), fileSize);
+	if (genome == NULL)
+		{
+		std::cerr << "Failed to read " << fastaFile << " - Either missing, or larger than 4GB" << std::endl;
+		exit(1);
+		}
+	std::cout << "Reference file size on disk " << fileSize << std::endl;
 
-    genomeSize = packGenome(genome, fileSize, referenceIDMap);
-    std::cout << "        Reference blob size " << genomeSize << std::endl;
-    fileSize = genomeSize;
-   // Calculate the number of elements to reserve in kmersIndex based on genome size
-    int numBitsToKeep = ::ceil(::log2(fileSize));
-    if (numBitsToKeep == 32) {
-        MASK = UINT32_MAX; // Set all bits to 1
-    } else {
-        MASK = (1 << numBitsToKeep) - 1;
-    }
-    std::cout << "Keeping " << numBitsToKeep << " bits in kmerHash" << std::endl;
-    kmersMap.resize(pow(2, numBitsToKeep));
-    // indexing proceeds by while keeping track of character position in the genome file, skipping header lines
-    // in the fasta file, and indexing kmers of the size specified by KMERSIZE.
-    // A kmer is first hashed into a 32 bits integer - a kmerIndex into the kmersMap vector.
-    // Then the position of the kmer is entered into the set in that position.
-    // example:  kmerMap[kmerIndex].insert(kmerPos);
-    // All positions are relative to the begning of the genome file in memory (char*).
-    // In this manner, the index can be trivially serialised as a binary dump to file.
-    // When the genome is reloaded into memory in a different location, the index is still valid.
+	genomeSize = packGenome(genome, fileSize, referenceIDMap);
+	std::cout << "        Reference blob size " << genomeSize << std::endl;
+	// Calculate the number of elements to reserve in kmersIndex based on genome size
+	int numBitsToKeep = ::ceil(::log2(genomeSize));
+	if (numBitsToKeep == 32)
+		MASK = UINT32_MAX; // Set all bits to 1
+	else
+		MASK = (1 << numBitsToKeep) - 1;
+	std::cout << "Keeping " << numBitsToKeep << " bits in kmerHash" << std::endl;
+	kmersMap.resize(pow(2, numBitsToKeep));
+	// indexing proceeds by while keeping track of character position in the genome file, skipping header lines
+	// in the fasta file, and indexing kmers of the size specified by KMERSIZE.
+	// A kmer is first hashed into a 32 bits integer - a kmerIndex into the kmersMap vector.
+	// Then the position of the kmer is entered into the set in that position.
+	// example:  kmerMap[kmerIndex].insert(kmerPos);
+	// All positions are relative to the begning of the genome file in memory (char*).
+	// In this manner, the index can be trivially serialised as a binary dump to file.
+	// When the genome is reloaded into memory in a different location, the index is still valid.
 
-    // just for counting the number of unique kmers
-//    std::set<uint64_t> uniqueKmers; // The map will store unique integers as keys and their count as values.
-//    std::set<uint32_t> uniqueKmerHashes; // The map will store unique integers as keys and their count as values.
+	uint32_t kmerHash;
+	uint64_t kmerCount = 0;
+	uint64_t pkmer;
+	std::string kMer;
+	for (uint32_t pos = 0; pos < genomeSize - 32; pos++)
+		{
+		// Add the occurrence to the kMerMap;
+		pkmer = encode_kmer_2bit::pack_32mer(genome + pos);
+		pkmer ^= encode_kmer_2bit::reverse_complement_32mer(pkmer);	// generate the canonical kmer representation
+		kmerHash = murmurHash3(pkmer) & MASK;
+		kmersMap[kmerHash].push_back(pos);
+		kmerCount++;
+		displayProgress(pos, genomeSize, 10);
+		}
 
-    uint32_t kmerHash;
-    uint64_t kmerCount = 0;
-    uint64_t pkmer;
-    std::string kMer;
-    std::string genomeStr(genome);
-    for (uint32_t pos=0; pos < genomeStr.size(); pos++)
-    {
-        // Generate and store packed kmers and their occurrences
-        kMer = (genomeStr.substr(pos, KMERSIZE));
-        // Add the occurrence to the kMerMap;
-        pkmer = encode_kmer_2bit::pack_32mer(kMer.c_str());
-        pkmer = pkmer ^ encode_kmer_2bit::reverse_complement_32mer(pkmer);// canonical kmer representation
-        if (MASK<UINT32_MAX)
-            kmerHash = murmurHash3(pkmer) & MASK;
-        else
-            kmerHash = murmurHash3(pkmer);
-        kmersMap[kmerHash].push_back(pos);
-        ++kmerCount;
-        displayProgress((u_int64_t) pos, genomeStr.size(), 10);
-    }
+	uint64_t kmersInMap = 0;
+	int count=0;
+	for (int i = 0; i < kmersMap.size(); i++)
+		{
+		if (kmersMap[i].empty())
+			{
+			kmersInMap++;
+			continue;
+			}
+		count++;
+		}
+	std::cout  << "Map size " << kmersMap.size() << ", kmersCount " << kmerCount << ", kmers in Map " << kmersInMap << std::endl;
 
-    uint64_t kmersInMap=0;
-    int count=0;
-    for (int i=0; i<kmersMap.size(); i++) {
-        if (kmersMap[i].empty()) {
-            kmersInMap++;
-            continue;
-        }
-        count++;
-   }
-    std::cout  << "Map size " << kmersMap.size() << ", kmersCount " << kmerCount
-               << ", kmers in Map " << kmersInMap << std::endl;
-    return genome;
-}
-
-
+	return genome;
+	}
