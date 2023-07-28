@@ -1,19 +1,14 @@
-//
-//  packGenomeBlob.hpp
-//  indexReference
-//
-//  Created by Shlomo Geva on 22/7/2023.
-//
+/*
+	PACKGENOMEBLOB.HPP
+	------------------
+	indexReference
 
-#ifndef packGenomeBlob_hpp
-#define packGenomeBlob_hpp
+	Created by Shlomo Geva on 22/7/2023.
+*/
+#pragma once
 
-#include <stdio.h>
-#include <cstdint>
-#include <iostream>
+#include <stdint.h>
+
 #include <map>
 
 std::size_t packGenome(char* genome, std::map<std::uint32_t, std::string>& referenceIDMap);
-
-#endif /* packGenomeBlob_hpp */
-

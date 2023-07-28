@@ -4,6 +4,10 @@
 //
 //  Created by Shlomo Geva on 13/7/2023.
 //
+
+#include <iostream>
+#include <iomanip>
+
 #include "indexGenome.hpp"
 #include "hash.hpp"
 #include "kmerUtilities.hpp"
@@ -117,7 +121,7 @@ char* index_kmers(const std::string& fastaFile, int KMERSIZE,
     std::cout << "        Reference blob size " << genomeSize << std::endl;
     fileSize = genomeSize;
    // Calculate the number of elements to reserve in kmersIndex based on genome size
-    int numBitsToKeep = std::ceil(std::log2(fileSize));
+    int numBitsToKeep = ::ceil(::log2(fileSize));
     if (numBitsToKeep == 32) {
         MASK = UINT32_MAX; // Set all bits to 1
     } else {

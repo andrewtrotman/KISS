@@ -1,17 +1,20 @@
-//
-//  main.cpp
-//  indexReference
-//
-//  Created by Shlomo Geva on 16/7/2023.
-//
+/*
+	MAIN.CPP
+	--------
+	indexReference
 
+	Created by Shlomo Geva on 16/7/2023.
+*/
+
+#include <map>
+#include <chrono>
 #include <sstream>
+#include <fstream>
+#include <iostream>
 
 #include "indexGenome.hpp"
 #include "serialiseKmersMap.hpp"
-#include <chrono>
-#include <fstream>
-#include <map>
+
 
 using std::cout;
 using std::endl;

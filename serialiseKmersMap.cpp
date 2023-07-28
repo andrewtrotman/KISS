@@ -1,9 +1,13 @@
-//
-//  serialiseKmersMap.cpp
-//  indexReference
-//
-//  Created by Shlomo Geva on 19/7/2023.
-//
+/*
+	SERIALISEKMERSMAP.CPP
+	---------------------
+	indexReference
+
+	Created by Shlomo Geva on 19/7/2023.
+*/
+#include <fstream>
+#include <iostream>
+
 #include "serialiseKmersMap.hpp"
 
 void serializeMap(const std::vector<std::vector<uint32_t>>& kmersMap, const std::string& innerMapFilename, const std::string& outerMapFilename) {
