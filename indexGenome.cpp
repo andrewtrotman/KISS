@@ -40,8 +40,8 @@ void displayProgress(uint64_t current, uint64_t total, int desiredUpdateInterval
 /*
     READ_ENTIRE_FILE()
     ------------------
- */
-char *read_entire_file(const char *filename, uint64_t& fileSize)
+*/
+char *read_entire_file(const char *filename, uint64_t &fileSize)
 	{
 	FILE *fp;
 	struct stat details;
@@ -53,14 +53,17 @@ char *read_entire_file(const char *filename, uint64_t& fileSize)
 			{
 			if (details.st_size != 0 || details.st_size > UINT32_MAX)
 				{
-				contents = (char *)malloc(details.st_size);
+				contents = (char *)malloc(details.st_size + 1);
 				if (fread(contents, details.st_size, 1, fp) != 1)
 					{
 					free(contents);
 					contents = NULL;
 					}
 				else
+					{
 					fileSize = details.st_size;
+					contents[details.st_size] = '\0';
+					}
 				}
 			}
 		fclose(fp);
@@ -71,14 +74,6 @@ char *read_entire_file(const char *filename, uint64_t& fileSize)
 /*
 	INDEX_KMERS()
 	-----------
-*/
-char* index_kmers(const std::string& fastaFile, int KMERSIZE,
-                  std::map<uint32_t, std::string>& referenceIDMap,
-                  std::vector<std::vector<uint32_t>>& kmersMap,
-                  uint32_t& MASK,
-                  uint64_t& genomeSize)
-{
-//std::vector<std::vector<uint32_t>> index_kmers(const std::string& fastaFile, int KMERSIZE, char *genome) {
     // Create a kmer index for the genome.
     // Index information is limited to just a unit32, holding the position of the kmer in the genome fasta file.
     // Size is upper-limited by the size of the genome in bytes (assuming one byte per base).
@@ -86,31 +81,36 @@ char* index_kmers(const std::string& fastaFile, int KMERSIZE,
     // - there can be at most 1M unique kmers in such a reference.
     // However, if the filesize is 3.5GB (e.g. human genome) then the index will have room for 2^32-1 kmers.
     // Each kmer is in the current implementation is restricted to the range of 16mer to 32mer.
-    /*
+    //
     // A kmer position in the map is found by packing the kmer onto uint64, and xoring it with its packed uint64 reverse complement.  This gives a canonical representation to kmer.
     // Shorter than 32mers will map to fewer bits, using the least signficant bits.
     // Hashing the uint64 onto a 32bit integer follows, using murmurHash3().
-    */
+    //
     // A kmer entry consists of the positions in the genome where the kmer is found.
     // The position is also limited by the filesize to 2^32, so it fits on a uint32.
     //
     // Note that the kmer size is limited to 32mers because we pack a base on 2 bits of a uint64.
     // This restriction can be lifted by using kmer random projection onto 64 bits,
-    //     and then the kmer length can be arbitrary.
-
+    //     and then the kmer length can be arbitrary.*/
+char* index_kmers(const std::string& fastaFile,
+                  int KMERSIZE,
+                  std::map<uint32_t, std::string>& referenceIDMap,
+                  std::vector<std::vector<uint32_t>>& kmersMap,
+                  uint32_t& MASK,
+                  uint64_t& genomeSize)
+{
     // Read reference file into memory
     std::cout << std::endl << "Loading References: " << fastaFile << std::endl;
-    std::string line;
-    std::string sequence; // Variable to collect the DNA sequence
     uint64_t fileSize;
-    char *genome = read_entire_file(fastaFile.c_str(),fileSize);
-    if (genome==NULL) {
+    char *genome = read_entire_file(fastaFile.c_str(), fileSize);
+    if (genome == NULL)
+    	{
         std::cerr << "Failed to read " << fastaFile << " - Either missing, or larger than 4GB" << std::endl;
         exit(1);
-    }
+    	}
     std::cout << "Reference file size on disk " << fileSize << std::endl;
-//    genomeSize = packGenome(genome, fileSize, referenceIDMap);
-    genomeSize = packGenome(genome, referenceIDMap);
+
+    genomeSize = packGenome(genome, fileSize, referenceIDMap);
     std::cout << "        Reference blob size " << genomeSize << std::endl;
     fileSize = genomeSize;
    // Calculate the number of elements to reserve in kmersIndex based on genome size
@@ -121,7 +121,7 @@ char* index_kmers(const std::string& fastaFile, int KMERSIZE,
         MASK = (1 << numBitsToKeep) - 1;
     }
     std::cout << "Keeping " << numBitsToKeep << " bits in kmerHash" << std::endl;
-    kmersMap.resize(pow(2,numBitsToKeep));
+    kmersMap.resize(pow(2, numBitsToKeep));
     // indexing proceeds by while keeping track of character position in the genome file, skipping header lines
     // in the fasta file, and indexing kmers of the size specified by KMERSIZE.
     // A kmer is first hashed into a 32 bits integer - a kmerIndex into the kmersMap vector.
@@ -136,7 +136,7 @@ char* index_kmers(const std::string& fastaFile, int KMERSIZE,
 //    std::set<uint32_t> uniqueKmerHashes; // The map will store unique integers as keys and their count as values.
 
     uint32_t kmerHash;
-    uint64_t kmerCount=0;
+    uint64_t kmerCount = 0;
     uint64_t pkmer;
     std::string kMer;
     std::string genomeStr(genome);

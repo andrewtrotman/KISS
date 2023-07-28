@@ -1,83 +1,81 @@
-//
-//  packGenomeBlob.cpp
-//  indexReference
-//
-//  Created by Shlomo Geva on 22/7/2023.
-//
+/*
+	PACKGENOMEBLOB.CPP
+	------------------
+	indexReference
+
+	Created by Shlomo Geva on 22/7/2023.
+*/
+#include <stdint.h>
+#include <string.h>
+#include <sys/stat.h>
+
+#include <map>
+#include <chrono>
+#include <string>
+#include <iostream>
 
 #include "packGenomeBlob.hpp"
 
-#include <cstdint>
-#include <cstring>
-#include <iostream>
-#include <map>
-#include <string>
 
-std::size_t packGenome(char* genome, std::map<std::uint32_t, std::string>& referenceIDMap) {
-    // Helper function to skip the ID line (if any) and return the index of the next line
-    auto skipIDLine = [](char* ptr) {
-        std::size_t index = 0;
-        while (ptr[index] != '\n') {
-            ++index;
-        }
-        return index + 1; // Move past '\n'
-    };
+/*
+	PACKGENOME()
+	------------
+*/
+size_t packGenome(char *genome, uint64_t genome_size, std::map<std::uint32_t, std::string> &referenceIDMap)
+	{
+	char *from;
+	char *to;
+	char *end = genome + genome_size;
 
-    // Initialize pointers for the old and new genomes
-    char* oldPtr = genome;
-    char* newPtr = genome;
+	// Traverse the old genome, character by character
+	for (from = to = genome; from < end; from++)
+		{
+		char c = *from;
+		if (c == '\n' || c == 'N')
+			{/* Nothing */}
+		else if (c == '>')
+			{
+			// Find the start and end of the line
+			char *start = from;
+			do
+				from++;
+			while (*from != '\n');
 
-    // Initialize variables to keep track of the new genome length and the current ID start position
-    std::uint32_t newLength = 0;
-    std::uint32_t currentIDStart = 0;
+			// Save the ID line to the referenceIDMap
+			referenceIDMap[to - genome] = std::string(start, from - start);
+			}
+		else
+			*to++ = c;			// Copy the DNA characters to the new position
+		}
 
-    // Traverse the old genome, character by character
-    for (std::size_t i = 0; oldPtr[i] != '\0'; ++i) {
-        char c = oldPtr[i];
+	// Null-terminate the new genome explicitly to make it a valid C-string
+	*to = '\0';
 
-        // Check for the ID line (beginning with '>')
-        if (c == '>') {
-            // Save the ID line to the referenceIDMap and update the currentIDStart
-            referenceIDMap[newLength] = std::string(oldPtr + i, skipIDLine(oldPtr + i));
-            currentIDStart = newLength;
-            i += skipIDLine(oldPtr + i) - 1; // Move to the end of the ID line
-            continue;
-        }
+	// Return the new length of the modified text
+	return to - genome;
+	}
 
-        // Skip newline characters and 'N' characters
-        if (c == '\n' || c == 'N') {
-            continue;
-        }
+/*
+	MAIN_UNITTEST()
+	---------------
+*/
+int main_unittest()
+	{
+	// Sample usage
+	char genome[] = ">ID1\nAGCT\n>NID2\nNNNN\nATGC\n";
+	std::cout << "Original Genome: " << genome << std::endl;
+	std::cout << "Old Genome Length: " << strlen(genome) << std::endl;
+	uint64_t file_size = strlen(genome);
 
-        // Copy the DNA characters to the new position
-        newPtr[newLength] = c;
-        ++newLength;
-    }
+	std::map<std::uint32_t, std::string> referenceIDMap;
+	size_t newLength = packGenome(genome, file_size, referenceIDMap);
 
-    // Null-terminate the new genome explicitly to make it a valid C-string
-    newPtr[newLength] = '\0';
+	// Access the modified genome using the original pointer 'genome'
+	std::cout << "Modified Genome  : " << genome << std::endl;
+	std::cout << "New Genome Length: " << newLength << std::endl;
 
-    // Return the new length of the modified text
-    return newLength;
-}
+	for (const auto &thang : referenceIDMap)
+		std::cout << thang.first << " " << thang.second << "\n";
 
-int mainTest() {
-    // Sample usage
-    char genome[] = ">ID1\nAGCT\n>NID2\nNNNN\nATGC\n";
-
-    std::map<std::uint32_t, std::string> referenceIDMap;
-
-    std::size_t newLength = packGenome(genome, referenceIDMap);
-
-    // Access the modified genome using the original pointer 'genome'
-    std::cout << "Modified Genome: " << genome << std::endl;
-    std::cout << "New Genome Length: " << newLength << std::endl;
-
-    // The original pointer 'genome' is still valid, and you can use it as needed.
-
-    // Free memory (if applicable) using the original pointer 'genome'
-    // ...
-
-    return 0;
-}
-
+	return 0;
+	}
