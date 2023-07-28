@@ -1,84 +1,77 @@
-//
-//  indexGenome.cpp
-//  indexKISS
-//
-//  Created by Shlomo Geva on 13/7/2023.
-//
+/*
+	INDEXGENOME.CPP
+	---------------
+	indexKISS
 
-#include <iostream>
+	Created by Shlomo Geva on 13/7/2023.
+*/
+
 #include <iomanip>
+#include <iostream>
 
 #include "hash.hpp"
 #include "indexGenome.hpp"
 #include "packGenomeBlob.hpp"
 #include "encode_kmer_2bit.h"
 
-void displayProgress(uint64_t current, uint64_t total, int desiredUpdateInterval) {
-    uint64_t percent = (current * 100) / total;
-    static uint64_t lastDisplayedPercent = -desiredUpdateInterval; // Initialize to a value that will trigger the first update
-    if (percent - lastDisplayedPercent >= desiredUpdateInterval) {
-        std::cout << "Progress: " << std::setw(3) << percent << "%" << std::endl;
-        std::cout.flush();
-        lastDisplayedPercent = percent;
-    }
-    /*
-     // example of use:
-     int totalIterations = 1000;
-     int percentUpdateInterval = 10; // Update progress every 10%
-     
-     for (int i = 0; i < totalIterations; ++i) {
-     // Your loop processing here
-     
-     displayProgress(i + 1, totalIterations, percentUpdateInterval);
-     }
-     */
-}
+/*
+	DISPLAYPROGRESS()
+	-----------------
+	// example of use:
+	int totalIterations = 1000;
+	int percentUpdateInterval = 10; // Update progress every 10%
+
+	for (int i = 0; i < totalIterations; ++i)
+		{
+		displayProgress(i + 1, totalIterations, percentUpdateInterval);
+		}
+*/
+void displayProgress(uint64_t current, uint64_t total, int desiredUpdateInterval)
+	{
+	static uint64_t lastDisplayedPercent = -1; // Initialize to a value that will trigger the first update
+	uint64_t percent = (current * 100) / total;
+	if (percent - lastDisplayedPercent >= desiredUpdateInterval)
+		{
+		printf("Progress: %3llu\n", percent);
+		lastDisplayedPercent = percent;
+		}
+	}
 
 /*
-     CONVERT TO UPPERCASE
- */
-void convertToUppercase(char* text, std::size_t size) {
-    for (std::size_t i = 0; i < size; ++i) {
-        text[i] = std::toupper(static_cast<unsigned char>(text[i]));
-    }
-}
-
-/*
-    READ_ENTIRE_FILE
+    READ_ENTIRE_FILE()
+    ------------------
  */
 char *read_entire_file(const char *filename, uint64_t& fileSize)
-  {
-  FILE *fp;
-  struct stat details;
-  char *contents = NULL;
-  fileSize = 0;
-  if ((fp = fopen(filename, "rb")) != NULL)
-  {
-      if (fstat(fileno(fp), &details) == 0)
-      {
-          if (details.st_size != 0 || details.st_size > UINT32_MAX)
-          {
-              contents = (char *)malloc(details.st_size);
-              if (fread(contents, details.st_size, 1, fp) != 1)
-              {
-                  free(contents);
-                  contents = NULL;
-              }
-              else
-              {
-                  fileSize = details.st_size;
-              }
-          }
-      }
-      fclose(fp);
-   }
-    convertToUppercase(contents, fileSize);
-   return contents;
-}
+	{
+	FILE *fp;
+	struct stat details;
+	char *contents = NULL;
+	fileSize = 0;
+	if ((fp = fopen(filename, "rb")) != NULL)
+		{
+		if (fstat(fileno(fp), &details) == 0)
+			{
+			if (details.st_size != 0 || details.st_size > UINT32_MAX)
+				{
+				contents = (char *)malloc(details.st_size);
+				if (fread(contents, details.st_size, 1, fp) != 1)
+					{
+					free(contents);
+					contents = NULL;
+					}
+				else
+					fileSize = details.st_size;
+				}
+			}
+		fclose(fp);
+		}
+	return contents;
+	}
 
 /*
- INDEX_KMERS
- */
+	INDEX_KMERS()
+	-----------
+*/
 char* index_kmers(const std::string& fastaFile, int KMERSIZE,
                   std::map<uint32_t, std::string>& referenceIDMap,
                   std::vector<std::vector<uint32_t>>& kmersMap,
