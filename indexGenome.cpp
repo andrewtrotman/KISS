@@ -124,21 +124,23 @@ char* index_kmers(const std::string &fastaFile, std::map<uint32_t, std::string> 
 	// In this manner, the index can be trivially serialised as a binary dump to file.
 	// When the genome is reloaded into memory in a different location, the index is still valid.
 
-	uint32_t kmerHash;
-	uint64_t kmerCount = 0;
-	uint64_t pkmer;
-	std::string kMer;
+	uint64_t pkmer = encode_kmer_2bit::pack_32mer(genome);
+	uint64_t remkp = encode_kmer_2bit::reverse_complement_32mer(pkmer);
+	pkmer >>= 2;
+	remkp <<= 2;
+	char *encode_pos = genome + 31;
 	for (uint32_t pos = 0; pos < genomeSize - 32; pos++)
 		{
-		// Add the occurrence to the kMerMap;
-		pkmer = encode_kmer_2bit::pack_32mer(genome + pos);
-		pkmer ^= encode_kmer_2bit::reverse_complement_32mer(pkmer);	// generate the canonical kmer representation
-		kmerHash = murmurHash3(pkmer) & MASK;
+		uint64_t new_base = encode_kmer_2bit::pack_1mer(*encode_pos++);
+		pkmer = (pkmer << 2) | new_base;
+		remkp = (remkp >> 2) | (~new_base << 62);
+		uint64_t cononical = pkmer ^ remkp;
+		uint32_t kmerHash = murmurHash3(cononical) & MASK;
 		kmersMap[kmerHash].push_back(pos);
-		kmerCount++;
 		displayProgress(pos, genomeSize, 10);
 		}
 
+	uint64_t kmerCount = genomeSize - 32;
 	uint64_t kmersInMap = 0;
 	int count=0;
 	for (int i = 0; i < kmersMap.size(); i++)

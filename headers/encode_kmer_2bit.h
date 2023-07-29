@@ -57,6 +57,20 @@ class encode_kmer_2bit
 			}
 
 		/*
+			ENCODE_KMER_2BIT::PACK_1MER()
+			-----------------------------
+		*/
+		/*!
+			@brief Return the encoding of a single base.
+			@param base [in] The DNA base to pack.
+			@returns The packed base.
+		*/
+		static uint64_t pack_1mer(char base)
+			{
+			return kmer_encoding_table[(size_t)base];
+			}
+
+		/*
 			ENCODE_KMER_2BIT::PACK_20MER()
 			------------------------------
 		*/
