@@ -142,16 +142,10 @@ char* index_kmers(const std::string &fastaFile, std::map<uint32_t, std::string> 
 
 	uint64_t kmerCount = genomeSize - 32;
 	uint64_t kmersInMap = 0;
-	int count=0;
 	for (int i = 0; i < kmersMap.size(); i++)
-		{
-		if (kmersMap[i].empty())
-			{
+		if (!kmersMap[i].empty())
 			kmersInMap++;
-			continue;
-			}
-		count++;
-		}
+
 	std::cout  << "Map size " << kmersMap.size() << ", kmersCount " << kmerCount << ", kmers in Map " << kmersInMap << std::endl;
 
 	return genome;
