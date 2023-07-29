@@ -10,32 +10,38 @@
 
 #include "serialiseKmersMap.hpp"
 
-void serializeMap(const std::vector<std::vector<uint32_t>>& kmersMap, const std::string& innerMapFilename, const std::string& outerMapFilename) {
-    // Set the buffer size to 8192 bytes (for example)
-    constexpr std::streamsize bufferSize = 8192;
+/*
+	SERIALIZEMAP()
+	--------------
+*/
+void serializeMap(const std::vector<std::vector<uint32_t>> &kmersMap, const std::string &innerMapFilename, const std::string &outerMapFilename)
+	{
+	// Set the buffer size to 8192 bytes (for example)
+	constexpr std::streamsize bufferSize = 8192;
 
-    // Open the files with custom buffer sizes
-    std::ofstream innerMapFile(innerMapFilename, std::ios::binary);
-    innerMapFile.rdbuf()->pubsetbuf(nullptr, bufferSize);
+	// Open the files with custom buffer sizes
+	std::ofstream innerMapFile(innerMapFilename, std::ios::binary);
+	innerMapFile.rdbuf()->pubsetbuf(nullptr, bufferSize);
 
-    std::ofstream outerMapFile(outerMapFilename, std::ios::binary);
-    outerMapFile.rdbuf()->pubsetbuf(nullptr, bufferSize);
+	std::ofstream outerMapFile(outerMapFilename, std::ios::binary);
+	outerMapFile.rdbuf()->pubsetbuf(nullptr, bufferSize);
 
-    uint32_t offset = 0;
-    for (const auto& innerVector : kmersMap) {
-        // Write inner vector data
-        innerMapFile.write(reinterpret_cast<const char*>(innerVector.data()), innerVector.size() * sizeof(uint32_t));
+	uint32_t offset = 0;
+	for (const auto& innerVector : kmersMap)
+		{
+		// Write inner vector data
+		innerMapFile.write(reinterpret_cast<const char *>(innerVector.data()), innerVector.size() * sizeof(uint32_t));
 
-        // Write the offset for the outer map
-        outerMapFile.write(reinterpret_cast<const char*>(&offset), sizeof(uint32_t));
+		// Write the offset for the outer map
+		outerMapFile.write(reinterpret_cast<const char *>(&offset), sizeof(uint32_t));
 
-        // Calculate the offset for the next inner vector
-        offset += static_cast<uint32_t>(innerVector.size());
-    }
+		// Calculate the offset for the next inner vector
+		offset += static_cast<uint32_t>(innerVector.size());
+		}
 
-    innerMapFile.close();
-    outerMapFile.close();
-}
+	innerMapFile.close();
+	outerMapFile.close();
+	}
 
 void deserializeMap(const std::string& innerMapFilename, const std::string& outerMapFilename, std::vector<uint32_t>& innerMapBlob, std::vector<uint32_t>& outerMapBlob) {
     std::ifstream innerMapFile(innerMapFilename, std::ios::binary);
