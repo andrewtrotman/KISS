@@ -94,7 +94,9 @@ char *read_entire_file(const char *filename, uint64_t &fileSize)
     //     and then the kmer length can be arbitrary.*/
 char* index_kmers(const std::string &fastaFile, std::map<uint32_t, std::string> &referenceIDMap, std::vector<std::vector<uint32_t>> &kmersMap, uint32_t &MASK, uint64_t &genomeSize)
 	{
-	// Read reference file into memory
+	/*
+		Load the genome file
+	*/
 	std::cout << std::endl << "Loading References: " << fastaFile << std::endl;
 	uint64_t fileSize;
 	char *genome = read_entire_file(fastaFile.c_str(), fileSize);
@@ -105,9 +107,15 @@ char* index_kmers(const std::string &fastaFile, std::map<uint32_t, std::string> 
 		}
 	std::cout << "Reference file size on disk " << fileSize << std::endl;
 
+	/*
+		Remove all non-base data from the file.
+	*/
 	genomeSize = packGenome(genome, fileSize, referenceIDMap);
 	std::cout << "        Reference blob size " << genomeSize << std::endl;
-	// Calculate the number of elements to reserve in kmersIndex based on genome size
+
+	/*
+		Calculate the number of elements to reserve in kmersIndex based on genome size
+	*/
 	int numBitsToKeep = ::ceil(::log2(genomeSize));
 	if (numBitsToKeep == 32)
 		MASK = UINT32_MAX; // Set all bits to 1
@@ -115,15 +123,12 @@ char* index_kmers(const std::string &fastaFile, std::map<uint32_t, std::string> 
 		MASK = (1 << numBitsToKeep) - 1;
 	std::cout << "Keeping " << numBitsToKeep << " bits in kmerHash" << std::endl;
 	kmersMap.resize(pow(2, numBitsToKeep));
-	// indexing proceeds by while keeping track of character position in the genome file, skipping header lines
-	// in the fasta file, and indexing kmers of the size specified by KMERSIZE.
-	// A kmer is first hashed into a 32 bits integer - a kmerIndex into the kmersMap vector.
-	// Then the position of the kmer is entered into the set in that position.
-	// example:  kmerMap[kmerIndex].insert(kmerPos);
-	// All positions are relative to the begning of the genome file in memory (char*).
-	// In this manner, the index can be trivially serialised as a binary dump to file.
-	// When the genome is reloaded into memory in a different location, the index is still valid.
 
+	/*
+		Index by sliding a windows over the genome.  As the reverse complement is also needed, its done by
+		keeping to "running windows" and shifting them then adding to the end.  That is, (pkmer << 2 | new_base)
+		where new_base is the 2-bit encoding of the new base to add to the window and the endocing is 2 bits per base.
+	*/
 	uint64_t pkmer = encode_kmer_2bit::pack_32mer(genome);
 	uint64_t remkp = encode_kmer_2bit::reverse_complement_32mer(pkmer);
 	pkmer >>= 2;
@@ -140,6 +145,9 @@ char* index_kmers(const std::string &fastaFile, std::map<uint32_t, std::string> 
 		displayProgress(pos, genomeSize, 10);
 		}
 
+	/*
+		Compute global index statistics including the number of "words", number of unique "words" (including colisions), et.
+	*/
 	uint64_t kmerCount = genomeSize - 32;
 	uint64_t kmersInMap = 0;
 	for (int i = 0; i < kmersMap.size(); i++)
