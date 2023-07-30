@@ -6,6 +6,8 @@
 	Created by Shlomo Geva on 13/7/2023.
 */
 
+#include <chrono>
+#include <thread>
 #include <iomanip>
 #include <iostream>
 
@@ -26,13 +28,13 @@
 		displayProgress(i + 1, totalIterations, percentUpdateInterval);
 		}
 */
-void displayProgress(uint64_t current, uint64_t total, int desiredUpdateInterval)
+void displayProgress(std::chrono::time_point<std::chrono::steady_clock> &start, uint64_t &lastDisplayedPercent, uint64_t current, uint64_t total, int desiredUpdateInterval)
 	{
-	static uint64_t lastDisplayedPercent = -desiredUpdateInterval; // Initialize to a value that will trigger the first update
 	uint64_t percent = (current * 100) / total;
 	if (percent - lastDisplayedPercent >= desiredUpdateInterval)
 		{
-		printf("Progress: %3llu%%\n", percent);
+		auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count();
+		printf("Progress: %3llu%% (%lld milliseconds)\n", percent, duration);
 		lastDisplayedPercent = percent;
 		}
 	}
@@ -72,27 +74,10 @@ char *read_entire_file(const char *filename, uint64_t &fileSize)
 	}
 
 /*
-	INDEX_KMERS()
-	-----------
-    // Create a kmer index for the genome.
-    // Index information is limited to just a unit32, holding the position of the kmer in the genome fasta file.
-    // Size is upper-limited by the size of the genome in bytes (assuming one byte per base).
-    // For instance, 2^20 map size will be created for a file of size 1MB
-    // - there can be at most 1M unique kmers in such a reference.
-    // However, if the filesize is 3.5GB (e.g. human genome) then the index will have room for 2^32-1 kmers.
-    // Each kmer is in the current implementation is restricted to the range of 16mer to 32mer.
-    //
-    // A kmer position in the map is found by packing the kmer onto uint64, and xoring it with its packed uint64 reverse complement.  This gives a canonical representation to kmer.
-    // Shorter than 32mers will map to fewer bits, using the least signficant bits.
-    // Hashing the uint64 onto a 32bit integer follows, using murmurHash3().
-    //
-    // A kmer entry consists of the positions in the genome where the kmer is found.
-    // The position is also limited by the filesize to 2^32, so it fits on a uint32.
-    //
-    // Note that the kmer size is limited to 32mers because we pack a base on 2 bits of a uint64.
-    // This restriction can be lifted by using kmer random projection onto 64 bits,
-    //     and then the kmer length can be arbitrary.*/
-char* index_kmers(const std::string &fastaFile, std::map<uint32_t, std::string> &referenceIDMap, std::vector<std::vector<uint32_t>> &kmersMap, uint32_t &MASK, uint64_t &genomeSize)
+	LOAD_GENOME_FILE()
+	------------------
+*/
+char *load_genome_file(const std::string &fastaFile, std::map<uint32_t, std::string> &referenceIDMap, uint64_t &genomeSize)
 	{
 	/*
 		Load the genome file
@@ -113,21 +98,23 @@ char* index_kmers(const std::string &fastaFile, std::map<uint32_t, std::string> 
 	genomeSize = packGenome(genome, fileSize, referenceIDMap);
 	std::cout << "        Reference blob size " << genomeSize << std::endl;
 
-	/*
-		Calculate the number of elements to reserve in kmersIndex based on genome size
-	*/
-	int numBitsToKeep = ::ceil(::log2(genomeSize));
-	if (numBitsToKeep == 32)
-		MASK = UINT32_MAX; // Set all bits to 1
-	else
-		MASK = (1 << numBitsToKeep) - 1;
-	std::cout << "Keeping " << numBitsToKeep << " bits in kmerHash" << std::endl;
-	kmersMap.resize(pow(2, numBitsToKeep));
+	return genome;
+	}
 
+/*
+	INDEX_KMERS_THREAD()
+	--------------------
+*/
+void index_kmers_thread(char *genome, uint64_t genomeSize, std::vector<protected_vector<uint32_t>> &kmersMap, uint32_t MASK)
+	{
+//printf("%llu bytes from %p\n", genomeSize, genome);
+
+    auto start = std::chrono::steady_clock::now();
+	uint64_t lastDisplayedPercent = -10; // Initialize to a value that will trigger the first update
 	/*
 		Index by sliding a windows over the genome.  As the reverse complement is also needed, its done by
-		keeping to "running windows" and shifting them then adding to the end.  That is, (pkmer << 2 | new_base)
-		where new_base is the 2-bit encoding of the new base to add to the window and the endocing is 2 bits per base.
+		keeping two "running windows" and shifting them then adding to the end.  That is, (pkmer << 2 | new_base)
+		where new_base is the 2-bit encoding of the new base to add to the window and the encoding is 2 bits per base.
 	*/
 	uint64_t pkmer = encode_kmer_2bit::pack_32mer(genome);
 	uint64_t remkp = encode_kmer_2bit::reverse_complement_32mer(pkmer);
@@ -142,19 +129,40 @@ char* index_kmers(const std::string &fastaFile, std::map<uint32_t, std::string> 
 		uint64_t cononical = pkmer ^ remkp;
 		uint32_t kmerHash = murmurHash3(cononical) & MASK;
 		kmersMap[kmerHash].push_back(pos);
-		displayProgress(pos, genomeSize, 10);
+		displayProgress(start, lastDisplayedPercent, pos, genomeSize, 10);
 		}
+	}
+
+/*
+	INDEX_KMERS()
+	-------------
+*/
+void index_kmers(char *genome, uint64_t genomeSize, std::vector<protected_vector<uint32_t>> &kmersMap, uint32_t MASK)
+	{
+	size_t thread_count = std::thread::hardware_concurrency();
+//	size_t thread_count = 2;
+	uint64_t chunk_size = genomeSize / thread_count;
+	uint64_t start = 0;
 
 	/*
-		Compute global index statistics including the number of "words", number of unique "words" (including colisions), et.
+		Allocate the thread pool
 	*/
-	uint64_t kmerCount = genomeSize - 32;
-	uint64_t kmersInMap = 0;
-	for (int i = 0; i < kmersMap.size(); i++)
-		if (!kmersMap[i].empty())
-			kmersInMap++;
+	std::vector<std::thread> threads;
 
-	std::cout  << "Map size " << kmersMap.size() << ", kmersCount " << kmerCount << ", kmers in Map " << kmersInMap << std::endl;
+	/*
+		Launch each thread
+	*/
+	std::cout << "Launching " << thread_count << " threads each with " << chunk_size << " pieces\n";
+	for (size_t i = 0; i < thread_count - 1; i++)
+		{
+		threads.push_back(std::thread(index_kmers_thread, genome + start, chunk_size, std::ref(kmersMap), MASK));
+		start += chunk_size;
+		}
+	index_kmers_thread(genome + start, genomeSize - start, kmersMap, MASK);
 
-	return genome;
+	/*
+		Wait for each thread to terminate
+	*/
+	for (auto &thread : threads)
+		thread.join();
 	}

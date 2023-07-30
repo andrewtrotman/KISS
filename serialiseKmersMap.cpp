@@ -14,7 +14,7 @@
 	SERIALIZEMAP()
 	--------------
 */
-void serializeMap(const std::vector<std::vector<uint32_t>> &kmersMap, const std::string &innerMapFilename, const std::string &outerMapFilename)
+void serializeMap(const std::vector<protected_vector<uint32_t>> &kmersMap, const std::string &innerMapFilename, const std::string &outerMapFilename)
 	{
 	// Set the buffer size to 8192 bytes (for example)
 	constexpr std::streamsize bufferSize = 8192;
@@ -27,7 +27,7 @@ void serializeMap(const std::vector<std::vector<uint32_t>> &kmersMap, const std:
 	outerMapFile.rdbuf()->pubsetbuf(nullptr, bufferSize);
 
 	uint32_t offset = 0;
-	for (const auto& innerVector : kmersMap)
+	for (const auto &innerVector : kmersMap)
 		{
 		// Write inner vector data
 		innerMapFile.write(reinterpret_cast<const char *>(innerVector.data()), innerVector.size() * sizeof(uint32_t));

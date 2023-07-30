@@ -1,6 +1,7 @@
 # Compiler and flags
 CC = g++
 CFLAGS = -O3 -std=c++11
+#CFLAGS = -O3 -std=c++11 -g -fprofile-instr-generate -fcoverage-mapping
 #CFLAGS = -g -o -std=c++11
 
 # Source directory and files
